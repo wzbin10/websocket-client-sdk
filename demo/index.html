@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>websocket-client-sdk · 连接 / 重连 / 心跳 / 订阅验证</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0 }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font: 14px/1.5 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    }
+    .topbar {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(22, 27, 34, .92);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid #262d36;
+      padding: 10px 16px;
+      display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center;
+    }
+    .brand { font-weight: 700; white-space: nowrap }
+    .stats { display: flex; gap: 16px; flex-wrap: wrap; color: #8b98a5; font-size: 13px; min-width: 0 }
+    .stats b { color: #e6edf3; font-variant-numeric: tabular-nums }
+    .controls { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; min-width: 0 }
+    @media (max-width: 900px) {
+      .stats, .controls { flex: 1 1 100%; margin-left: 0 }
+    }
+    button, select {
+      background: #21262d; color: #e6edf3;
+      border: 1px solid #30363d; border-radius: 6px;
+      padding: 4px 10px; cursor: pointer; font-size: 13px;
+    }
+    button:hover { border-color: #4493f8 }
+    button.primary { border-color: #2ea043; color: #3fb950 }
+    button.danger { border-color: #b62324; color: #f85149 }
+    button:disabled { opacity: .45; cursor: not-allowed }
+    label { display: inline-flex; align-items: center; gap: 6px; color: #8b98a5; font-size: 13px; white-space: nowrap }
+    input[type="checkbox"] { accent-color: #4493f8; width: 14px; height: 14px; cursor: pointer }
+    input[type="text"], input[type="number"], textarea {
+      background: #0d1117; border: 1px solid #30363d; color: #e6edf3;
+      border-radius: 6px; padding: 4px 8px; font-size: 13px; font-family: inherit;
+    }
+    input[type="text"]:focus, textarea:focus { outline: none; border-color: #4493f8 }
+    .hint { padding: 10px 16px; color: #8b98a5; border-bottom: 1px dashed #21262d; font-size: 13px }
+    .hint code { color: #a371f7 }
+    main.grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px; padding: 16px; margin-right: 344px;
+    }
+    @media (max-width: 1400px) {
+      main.grid { grid-template-columns: 1fr }
+    }
+    @media (max-width: 900px) {
+      main.grid { margin-right: 0 }
+      .panel { display: none }
+    }
+    .card {
+      background: #161b22; border: 1px solid #262d36; border-radius: 10px;
+      padding: 12px; display: flex; flex-direction: column; gap: 10px;
+    }
+    .card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+    .card-name { font-weight: 600 }
+    .card-sub { color: #8b98a5; font-size: 12px; margin-top: -4px }
+    .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
+    .row input[type="text"] { flex: 1; min-width: 120px }
+    .row input[type="number"] { width: 88px }
+    .chip {
+      font-size: 12px; padding: 1px 8px; border-radius: 999px;
+      border: 1px solid #30363d; color: #8b98a5; white-space: nowrap;
+    }
+    .chip.ok { color: #3fb950; border-color: #2ea043 }
+    .chip.warn { color: #d29922; border-color: #9e6a03 }
+    .chip.err { color: #f85149; border-color: #b62324 }
+    .chip.info { color: #4493f8; border-color: #1f6feb }
+    textarea { width: 100%; min-height: 64px; resize: vertical; font-family: Consolas, Menlo, monospace }
+    table { width: 100%; border-collapse: collapse; font-size: 13px }
+    th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #21262d }
+    th { color: #8b98a5; font-weight: 500 }
+    td.ev { font-family: Consolas, Menlo, monospace; color: #e6edf3 }
+    td.pay { color: #8b98a5; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+    td.st-running  { color: #8b98a5 }
+    td.st-arriving { color: #d29922 }
+    td.st-dwelling { color: #3fb950 }
+    td.num { font-variant-numeric: tabular-nums }
+    .panel {
+      position: fixed; right: 12px; top: 64px; bottom: 12px; width: 320px;
+      background: #161b22; border: 1px solid #262d36; border-radius: 10px;
+      padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow: hidden;
+    }
+    .panel-title {
+      font-size: 12px; color: #8b98a5; letter-spacing: .05em;
+      border-bottom: 1px solid #21262d; padding-bottom: 4px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .panel-title button { padding: 1px 8px; font-size: 12px }
+    #panel-log {
+      flex: 1 1 auto; min-height: 0; overflow-y: auto;
+      font: 12px/1.6 Consolas, Menlo, monospace;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .log-line { flex: 0 0 auto; white-space: pre-wrap; word-break: break-all; color: #8b98a5 }
+    .log-connect    { color: #3fb950 }
+    .log-disconnect { color: #d29922 }
+    .log-error      { color: #f85149 }
+    .log-reconnect  { color: #a371f7 }
+    .log-heartbeat  { color: #4493f8 }
+    .log-event      { color: #79c0ff }
+    .log-ctl        { color: #a371f7 }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">websocket-client-sdk · 连接 / 重连 / 心跳 / 订阅验证</div>
+    <div class="stats">
+      <span>状态 <b id="stat-state">idle</b></span>
+      <span>重连尝试 <b id="stat-attempts">0</b></span>
+      <span>心跳延迟 <b id="stat-latency">–</b></span>
+      <span>队列 <b id="stat-queue">0</b></span>
+      <span>ping 计数 <b id="stat-ping">0</b></span>
+      <span>pong 计数 <b id="stat-pong">0</b></span>
+    </div>
+    <div class="controls">
+      <button id="ctl-connect" class="primary">连接</button>
+      <button id="ctl-disconnect" class="danger">断开</button>
+      <button id="ctl-destroy">销毁</button>
+      <button id="ctl-rebuild">销毁并重建</button>
+    </div>
+  </header>
+
+  <div class="hint">
+    验证要点：① 断开后 <code>reconnect_attempt</code> / <code>reconnect</code> 事件按指数退避触发；
+    ② 心跳间隔内 <code>pong</code> 更新延迟，把服务端停掉可见 <code>HEARTBEAT_TIMEOUT</code> → 自动重连；
+    ③ 未连接时 <code>emit</code> 的消息进入队列，连接恢复后按序补发；
+    ④ <code>emitWithAck</code> 与服务端 <code>server:ask</code> 的双向 ack 都可回传；
+    ⑤ <code>auth</code> 会拼进连接地址的查询串，服务端校验 <code>token</code>，缺失或非法直接 401 拒绝握手；
+    勾选「动态求值」后每次连接/重连都会重新取 token（默认 token 为 <code>valid-token</code>，改成任意非法值可看拒绝路径）。
+  </div>
+
+  <main class="grid">
+    <section class="card">
+      <div class="card-head">
+        <span class="card-name">① 连接管理</span>
+        <span class="chip" id="chip-state">idle</span>
+      </div>
+      <div class="card-sub">connect / disconnect / destroy 均为幂等；断开是主动关闭，不会再自动重连。</div>
+      <div class="row">
+        <input type="text" id="opt-url" spellcheck="false" value="ws://localhost:8787/ws" />
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="opt-auth" checked /> 携带 auth</label>
+        <label>user <input type="text" id="opt-auth-user" spellcheck="false" value="demo-user" style="flex:0 1 110px" /></label>
+        <label>token <input type="text" id="opt-auth-token" spellcheck="false" value="valid-token" style="flex:0 1 140px" /></label>
+        <label><input type="checkbox" id="opt-auth-dynamic" /> 动态求值</label>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="opt-reconnection" checked /> 自动重连</label>
+        <label><input type="checkbox" id="opt-queue" checked /> 断线排队</label>
+        <label>心跳(ms) <input type="number" id="opt-heartbeat" value="5000" min="0" step="1000" /></label>
+      </div>
+      <div class="row">
+        <label>重连延迟(ms) <input type="number" id="opt-delay" value="500" min="0" step="100" /></label>
+        <label>上限(ms) <input type="number" id="opt-delaymax" value="5000" min="0" step="500" /></label>
+        <label>最大次数 <input type="number" id="opt-attempts" value="10" min="0" step="1" /></label>
+      </div>
+      <div class="row">
+        <button id="ctl-connect-opts">按当前配置连接</button>
+        <button id="ctl-apply">重建以应用配置</button>
+        <span class="chip" id="chip-url">ws://localhost:8787/ws</span>
+        <span class="chip" id="chip-auth">auth –</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <span class="card-name">② 发送事件</span>
+        <span class="chip" id="chip-ack">ack –</span>
+      </div>
+      <div class="card-sub">emit 无应答；带 ack 回调 或 emitWithAck(Promise) 会等服务端回传。</div>
+      <div class="row">
+        <input type="text" id="emit-ev" spellcheck="false" value="echo" style="flex:0 1 180px" />
+        <button id="emit-send">emit 发送</button>
+        <button id="emit-ack">emit + ack</button>
+        <button id="emit-promise">emitWithAck</button>
+      </div>
+      <textarea id="emit-data" spellcheck="false">{"text":"hello from demo"}</textarea>
+      <div class="row">
+        <span class="chip">队列中 <b id="emit-queue">0</b></span>
+        <span class="chip">已发送 <b id="emit-sent">0</b></span>
+        <button id="emit-queue-test">断线时发 5 条（测补发）</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <span class="card-name">③ 事件订阅</span>
+        <span class="chip info" id="chip-listeners">0 个监听</span>
+      </div>
+      <div class="card-sub">内置生命周期事件固定订阅；下表为服务端下推事件，可逐条 on / off。</div>
+      <table>
+        <thead><tr><th>事件</th><th>订阅</th><th>最近负载</th></tr></thead>
+        <tbody id="sub-rows"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <span class="card-name">④ 内置事件日志</span>
+        <span class="chip" id="chip-builtin">–</span>
+      </div>
+      <div class="card-sub">生命周期事件的触发次数与最近时间，用于验证状态机流转。</div>
+      <table>
+        <thead><tr><th>事件</th><th>次数</th><th>最近</th></tr></thead>
+        <tbody id="builtin-rows"></tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <span class="card-name">⑤ 地铁车次到站实时模拟</span>
+        <span class="chip" id="chip-metro">等待数据</span>
+      </div>
+      <div class="card-sub">服务端每秒广播 <code>metro:trains</code> 全量快照，到站时补发 <code>metro:arrival</code>；表格随推送实时刷新。</div>
+      <table>
+        <thead>
+          <tr>
+            <th>车次</th><th>方向</th><th>当前站</th><th>下一站</th><th>状态</th><th>倒计时</th><th>载客</th>
+          </tr>
+        </thead>
+        <tbody id="metro-rows">
+          <tr><td colspan="7" style="color:#8b98a5">尚未收到数据，点击「连接」后开始接收推送。</td></tr>
+        </tbody>
+      </table>
+      <div class="row">
+        <span class="chip">最近到站 <b id="metro-arrival">–</b></span>
+        <span class="chip">快照更新 <b id="metro-updated">–</b></span>
+      </div>
+    </section>
+  </main>
+
+  <aside class="panel">
+    <div class="panel-title">事件日志<button id="ctl-clear">清空</button></div>
+    <div id="panel-log"></div>
+  </aside>
+
+  <script type="module" src="./.build/main.js"></script>
+</body>
+</html>

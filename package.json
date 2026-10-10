@@ -1,0 +1,42 @@
+{
+  "name": "websocket-client-sdk",
+  "version": "0.1.0",
+  "description": "websocket的sdk封装",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --watch",
+    "typecheck": "tsc --noEmit",
+    "demo:build": "esbuild demo/main.ts --bundle --format=esm --target=es2020 --sourcemap --legal-comments=none --outfile=demo/.build/main.js",
+    "demo:watch": "esbuild demo/main.ts --bundle --format=esm --target=es2020 --sourcemap --legal-comments=none --watch --outfile=demo/.build/main.js",
+    "demo:server": "node demo/server.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["websocket", "ws", "ws-client", "reconnect", "heartbeat", "socket", "sdk"],
+  "license": "MIT",
+  "author": "wzbin10 <wzbin1026@163.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wzbin10/websocket-client-sdk.git"
+  },
+  "bugs": "https://github.com/wzbin10/websocket-client-sdk/issues",
+  "homepage": "https://github.com/wzbin10/websocket-client-sdk#readme",
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3"
+  }
+}
